@@ -1,0 +1,7 @@
+*.out
+*.err
+*.log
+__pycache__/
+*.pyc
+.env
+*.o*
