@@ -4,6 +4,7 @@
 /data/PHURI-Langenberg/people/Mine/SL_MA/INTERVAL_SL_sumstats/ INTERVAL
 /data/PHURI-Langenberg/people/Mine/SL_MA/BWHHS_027/ BWHHS_027
 /data/PHURI-Langenberg/people/Mine/SL_MA/BWHHS_019/ BWHHS_019
+/data/PHURI-Langenberg/people/Mine/SL_MA/BWHHS_controls/ BWHHS_Controls
 /data/PHURI-Langenberg/people/Mine/SL_MA/COPDGene/output/cases/ COPD_cases
 /data/PHURI-Langenberg/people/Mine/SL_MA/COPDGene/output/controls/ COPD_controls
 /data/PHURI-Langenberg/people/Mine/SL_MA/EPIC_B1_B2_Other/ EPIC

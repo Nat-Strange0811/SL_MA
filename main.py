@@ -1,11 +1,12 @@
 import sys
 import os
 import random
+import duckdb as dd
 import pandas as pd
 from pathlib import Path
 import sys
 import polars as pl
-import hashlib
+import re
 
 '''
 Script for initial QC analysis for SomaLogic Meta Analaysis project. Two main components:
@@ -77,6 +78,7 @@ class Analysis():
         self.ValuesDict = {
             "BWHHS_027"         :   ("SE", "EAF_QTL", "Extracted", "EFFECT_ALLELE", "OTHER_ALLELE", "MarkerName", "INFO"),
             "BWHHS_019"         :   ("SE", "EAF_QTL", "Extracted", "EFFECT_ALLELE", "OTHER_ALLELE", "MarkerName", "INFO"),
+            "BWHHS_Controls"    :   ("SE", "EAF_QTL", "Extracted", "EFFECT_ALLELE", "OTHER_ALLELE", "MarkerName", "INFO"),
             "CHRIS"             :   ("SE", "EAF", "Constructed", "CHR", "POS", "EFFECT_ALLELE", "NON_EFFECT_ALLELE", "INFO"),
             "COPD_cases"        :   ("SE", "EAF", "Extracted", "EFFECT_ALLELE", "NON_EFFECT_ALLELE", "MarkerName", "INFO"),
             "COPD_controls"     :   ("SE", "EAF", "Extracted", "EFFECT_ALLELE", "NON_EFFECT_ALLELE", "MarkerName", "INFO"),
@@ -98,32 +100,26 @@ class Analysis():
          
         #Tracking
         print("Loading dbSNP\n\n\n")
-    
-        self.snp = set()
         
-        self.snp_df = pl.scan_csv(
-                        "/data/PHURI-Langenberg/people/SL_MA/02_dbSNP/00-All_filtered.tsv.gz",
-                        separator="\t",
-                        skip_rows = 56,
-                    ).select(["chr", "pos", "ref", "alt"]
-                    )
-                    
-        offset = 0
-        batch_size = 1_000_000
-        '''
-        while True:
-            batch = self.snp_df.slice(offset, batch_size).collect()
-            if batch.is_empty():
-                break
+        self.conn = dd.connect(database=':memory:')
         
-            for chr_, pos, ref, alt in batch.iter_rows():
-                self.snp.add(self.key(chr_, pos, ref, alt))
-                self.snp.add(self.key(chr_, pos, alt, ref))
-                
-            offset += batch_size
-        '''
-        del self.snp_df
+        snp = self.conn.read_csv(
+            '/data/PHURI-Langenberg/people/SL_MA/02_dbSNP/00-All_filtered.tsv.gz',
+            delimiter='\t',
+            header=True,
+            comment='#',
+            skiprows=56,
+            columns={
+                'chr': 'VARCHAR',
+                'pos': 'INTEGER',
+                'rsID': 'VARCHAR',
+                'ref': 'VARCHAR',
+                'alt': 'VARCHAR',
+
+            }
+        )
         
+        self.conn.register("snp", snp)
         
         #Tracking
         print("Loading files\n\n\n")
@@ -154,21 +150,49 @@ class Analysis():
         self.calculateQCMetrics()
         
         #Save results
-        self.results.to_csv(os.path.join(self.outFile, f"{self.ID}.csv"), index=False)
-        
+        self.results.to_csv(os.path.join(self.outFile, f"{self.ID}.csv"), index=False)    
     
-    def key(self, chro, pos, ref, alt):
-        return
-        h = hashlib.blake2b(digest_size=16)
-        h.update(str(chro).encode())
-        h.update(b'\0')
-        h.update(str(pos).encode())
-        h.update(b'\0')
-        h.update(ref.encode())
-        h.update(b'\0')
-        h.update(alt.encode())
-        return h.digest()
+    def ExtractID(self, file):
+        '''
+        ExtractID Method:
         
+            Inputs:
+                self - Allows access to object level variables
+                file - File path for the specific file being analysed
+                
+            Outputs:
+                Extracted ID from the file name
+        '''
+        
+        regex_dict = {
+            "Decode"            : r'^Proteomics_SMP_PC0_(?P<seq_id>[^_]+(?:_[^_]+)*)_.*$',
+            "CHRIS"             : r'^(?P<seq_id>[^_]+)_.*$',
+            "INTERVAL"          : r'^(?P<seq_id>[^_]+)_.*$',
+            "BWHHS_027"         : r'bwhhs027_(?P<seq_id>[^_]+_[^_]+)_formatted\.txt\.gz$',
+            "BWHHS_019"         : r'^bwhhs019_case_(?P<seq_id>[^_]+_[^_]+)_formatted\.txt\.gz$',
+            "BWHHS_Controls"    : r'^bwhhs019_control_(?P<seq_id>[^_]+_[^_]+)_formatted\.txt\.gz$',
+            "COPD_cases"        : r'^COPDcases_(?P<seq_id>[^_]+_[^_]+)_formatted\.txt\.gz$',
+            "COPD_controls"     : r'^COPDcontrols_(?P<seq_id>[^_]+_[^_]+)_formatted\.txt\.gz$',
+            "EPIC"              : r'^all_invn_X(?P<seq_id>[^_]+_[^_]+)_MarkerName_fastGWA\.gz$',
+            "GenScot"           : r'^genscot_(?P<seq_id>[^_]+_[^_]+)_formatted\.txt\.gz$',
+            "HUNT_controls"     : r'^hunt_controls_(?P<seq_id>[^_]+_[^_]+)_formatted\.txt\.gz$',
+            "HUNT_prev"         : r'^hunt_prev_(?P<seq_id>[^_]+_[^_]+)_formatted\.txt\.gz$',
+            "HUNT_incident"     : r'^hunt_incident_(?P<seq_id>[^_]+_[^_]+)_formatted\.txt\.gz$',
+            "EPIC_T2D"          : r'^cohort_invn_X(?P<seq_id>[^_]+_[^_]+)_MarkerName_fastGWA\.gz$',
+            "EPIC_Cases"        : r'^cases_invn_X(?P<seq_id>[^_]+_[^_]+)_MarkerName_fastGWA\.gz$',
+            "WHII"              : r'^CLEANED\.seq\.(?P<seq_id>[^.]+\.[^.]+)\.fastGWA\.gz$',
+            "VIKING"            : r'^(?P<seq_id>[^_]+)_.*$',
+            "Fenland_Omics"     : r'^Fenland_OMICS_res_invn_X(?P<seq_id>[^_]+_[^_]+)_.*$',
+            "Fenland_GWAS"      : r'^Fenland_GWAS_res_invn_X(?P<seq_id>[^_]+_[^_]+)_.*$',
+            "Fenland_CoreExome" : r'^Fenland_CoreExome_res_invn_X(?P<seq_id>[^_]+_[^_]+)_.*$'
+        }    
+        
+        if "test" in file:
+            return "test_file"
+        
+        ID = re.search(regex_dict[self.ID], file).group("seq_id")
+        
+        return ID
     
     def calculateQCMetrics(self):
         '''
@@ -214,7 +238,10 @@ class Analysis():
             
             
             #Initialise the data structure and where the QC results will be held
-            data = pl.scan_csv(file, separator="\t", null_values=["NA"])
+            if self.ID != "EPIC":
+                data = pl.scan_csv(file, separator="\t", null_values=["NA"])
+            else:
+                data = pl.scan_csv(file, separator=" ", null_values=["NA"])
                 
             rows = data.select(pl.len()).collect().item()
             n_rows += rows
@@ -287,11 +314,11 @@ class Analysis():
             #Check which mode for SNP details extraction is required
             if self.ValuesDict[self.ID][2] == "Constructed":
                 queries = data.select([
-                    pl.col(self.ValuesDict[self.ID][3]).alias("chr"),
-                    pl.col(self.ValuesDict[self.ID][4]).cast(pl.Int64).alias("pos"),
+                    pl.col(self.ValuesDict[self.ID][3]).cast(pl.Utf8).str.replace("chr", "").alias("chr"),
+                    pl.col(self.ValuesDict[self.ID][4]).cast(pl.Int32).alias("pos"),
                     pl.col(self.ValuesDict[self.ID][5]).alias("ref"),
                     pl.col(self.ValuesDict[self.ID][6]).alias("alt"),
-                ])
+                ]).collect()
             else:
                 snp_col = self.ValuesDict[self.ID][5]
 
@@ -300,7 +327,6 @@ class Analysis():
                     .str.split(":", inclusive=False)
                     .list.get(0)
                     .str.replace("chr", "")
-                    .cast(pl.Int64)
                     .alias("chr"),
 
                     pl.col(snp_col)
@@ -308,26 +334,38 @@ class Analysis():
                     .list.get(1)
                     .str.split("_")
                     .list.get(0)
-                    .cast(pl.Int64)
+                    .cast(pl.Int32)
                     .alias("pos"),
 
                     pl.col(self.ValuesDict[self.ID][3]).alias("ref"),
                     pl.col(self.ValuesDict[self.ID][4]).alias("alt"),
-                ])
+                ]).collect()
+        
+            self.conn.register('data', queries)
             
-            for batch in queries.collect(engine="streaming").iter_slices(n_rows=1_000_000):
-                for chr_, pos, ref, alt in batch.iter_rows():
-                    if self.key(chr_, pos, ref, alt) in self.snp:
-                        rsID_count += 1
+            rsID_count = self.conn.execute("""
+                SELECT COUNT(*) AS match_count
+                FROM data
+                JOIN snp
+                ON data.chr = TRIM(snp.chr)
+                AND data.pos = snp.pos
+                AND (
+                    (data.ref = ANY(string_split(snp.ref, ','))
+                    AND data.alt = ANY(string_split(snp.alt, ',')))
+                OR (data.ref = ANY(string_split(snp.alt, ','))
+                    AND data.alt = ANY(string_split(snp.ref, ',')))
+                )
+            """).fetchone()[0]
 
-            
+            #Calculate percentages
             se_pct = se_count / n_rows * 100
             maf_pct = maf_count / n_rows * 100
             mac_pct = mac_count / n_rows * 100
             info_pct = info_count / n_rows * 100 if info_count is not None else None
             rsID_pct = rsID_count / n_rows * 100
             
-            self.results.loc[self.length] = [filename, 
+            #Append to results
+            self.results.loc[self.length] = [self.ExtractID(filename), 
                                             se_pct, 
                                             mac_pct, 
                                             maf_pct, 
@@ -336,13 +374,15 @@ class Analysis():
                                             ]
             self.length += 1
             
+            #Update cohort averages
             mean_se_pct += se_pct
             mean_maf_pct += maf_pct
             mean_mac_pct += mac_pct
             if self.ValuesDict[self.ID][-1]:
                 mean_info_pct += info_pct
             mean_rsID_pct += rsID_pct
-            
+        
+        #Calculate cohort averages    
         mean_se_pct /= self.length
         mean_maf_pct /= self.length
         mean_mac_pct /= self.length

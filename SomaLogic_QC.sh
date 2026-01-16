@@ -3,9 +3,9 @@
 #$ -N soma_qc
 #$ -pe smp 1
 #$ -l h_vmem=64G
-#$ -l h_rt=1:00:00
+#$ -l h_rt=12:00:00
 #$ -j y
-#$ -t 1-20
+#$ -t 1-21
 
 module load miniforge
 mamba activate SL_MA_QC
