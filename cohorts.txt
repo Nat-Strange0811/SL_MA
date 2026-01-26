@@ -1,5 +1,5 @@
 /data/PHURI-Langenberg/people/SL_MA/01_QC/Nat/ CHRIS
-/data/PHURI-Langenberg/studies/Decode_smpnorm_summarystats_Eldjarn_2023_Nature/ Decode
+/data/PHURI-Langenberg/people/Mine/SL_MA/Decode/ Decode
 /data/PHURI-Langenberg/people/Mine/SL_MA/CHRIS/ CHRIS
 /data/PHURI-Langenberg/people/Mine/SL_MA/INTERVAL_SL_sumstats/ INTERVAL
 /data/PHURI-Langenberg/people/Mine/SL_MA/BWHHS_027/ BWHHS_027

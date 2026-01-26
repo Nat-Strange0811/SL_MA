@@ -68,7 +68,7 @@ class Analysis():
             "INTERVAL"          : ("CHR", "POS", "SNPID", "EA", "NEA", "EAF", "N", "BETA", "SE", "MLOG10P", "CHISQ"),
             "WHII"              : ("cpaid", "SNP", "STRAND", "EFFECT_ALLELE", "OTHER_ALLELE", "EAF", "BETA", "SE", "PVAL", "N", "MAC", "INFO"),
             "VIKING"            : ("BETA", "SE", "PVAL", "SNPID", "Harmonised_SNPID", "chr", "POS", "EFFECT_ALLELE", "NON_EFFECT_ALLELE", "EAF", "INFO", "N", "IMPUTED", "HWE_P", "CALL_RATE"),
-            "Decode"            : ("Chrom", "Pos", "Name", "rsids", "effectAllele", "otherAllele", "Beta", "Pval", "minus_log10_pval", "SE", "N", "ImpMAF"),
+            "Decode"            : ("Chrom_b37", "Pos_b37", "Chrom_b38", "Pos_b38", "Name", "rsids", "effectAllele", "otherAllele", "Beta", "Pval", "minus_log10_pval", "SE", "N", "ImpMAF", "MarkerName"),
             "HUNT_controls"     : ("A1", "A2", "N", "AF1", "BETA", "SE", "P", "SNP", "Freq_Prev", "N_CHR_Prev", "Freq_Control", "N_CHR_Control", "Freq_Incident", "N_CHR_Incident", "r2", "MarkerName"),
             "HUNT_prev"         : ("A1", "A2", "N", "AF1", "BETA", "SE", "P", "SNP", "Freq_Prev", "N_CHR_Prev", "Freq_Control", "N_CHR_Control", "Freq_Incident", "N_CHR_Incident", "r2", "MarkerName"),
             "HUNT_incident"     : ("A1", "A2", "N", "AF1", "BETA", "SE", "P", "SNP", "Freq_Prev", "N_CHR_Prev", "Freq_Control", "N_CHR_Control", "Freq_Incident", "N_CHR_Incident", "r2", "MarkerName")
@@ -92,7 +92,7 @@ class Analysis():
             "INTERVAL"          :   ("SE", "EAF", "Constructed", "CHR", "POS", "EA", "NEA", None),
             "WHII"              :   ("SE", "EAF", "Extracted", "EFFECT_ALLELE", "OTHER_ALLELE", "cpaid", "INFO"),
             "VIKING"            :   ("SE", "EAF", "Extracted", "EFFECT_ALLELE", "NON_EFFECT_ALLELE", "Harmonised_SNPID", "INFO"),
-            "Decode"            :   ("SE", "ImpMAF", "Constructed", "Chrom", "Pos", "effectAllele", "otherAllele", None),
+            "Decode"            :   ("SE", "ImpMAF", "Constructed", "Chrom_b37", "Pos_b37", "effectAllele", "otherAllele", None),
             "HUNT_controls"     :   ("SE", "AF1", "Extracted", "A1", "A2", "MarkerName", None),
             "HUNT_prev"         :   ("SE", "AF1", "Extracted", "A1", "A2", "MarkerName", None),
             "HUNT_incident"     :   ("SE", "AF1", "Extracted", "A1", "A2", "MarkerName", None)
@@ -101,8 +101,10 @@ class Analysis():
         #Tracking
         print("Loading dbSNP\n\n\n")
         
+        #Set up duckdb connection
         self.conn = dd.connect(database=':memory:')
         
+        #Read in dbSNP
         snp = self.conn.read_csv(
             '/data/PHURI-Langenberg/people/SL_MA/02_dbSNP/00-All_filtered.tsv.gz',
             delimiter='\t',
@@ -119,6 +121,7 @@ class Analysis():
             }
         )
         
+        #Register snp table
         self.conn.register("snp", snp)
         
         #Tracking
@@ -140,7 +143,7 @@ class Analysis():
         self.random_files = random.sample(self.files, n)
         
         #Instantiate results
-        self.results = pd.DataFrame(columns= ["FileID", "SE", "MAC", "MAF", "INFO", "rsID"])
+        self.results = pd.DataFrame(columns= ["FileID", "SE", "MAC", "MAF", "Rare Variant", "INFO", "rsID"])
         self.length = 0
         
         #Tracking
@@ -165,7 +168,7 @@ class Analysis():
         '''
         
         regex_dict = {
-            "Decode"            : r'^Proteomics_SMP_PC0_(?P<seq_id>[^_]+(?:_[^_]+)*)_.*$',
+            "Decode"            : r'^DECODE_(?P<seq_id>[^_]+(?:_[^_]+)*)_b37*$',
             "CHRIS"             : r'^(?P<seq_id>[^_]+)_.*$',
             "INTERVAL"          : r'^(?P<seq_id>[^_]+)_.*$',
             "BWHHS_027"         : r'bwhhs027_(?P<seq_id>[^_]+_[^_]+)_formatted\.txt\.gz$',
@@ -206,6 +209,7 @@ class Analysis():
 
         '''
         
+        #Establish initial mean values for the cohort
         mean_se_pct = 0
         mean_maf_pct = 0
         mean_mac_pct= 0
@@ -214,7 +218,8 @@ class Analysis():
             mean_info_pct = 0
         else:
             mean_info_pct = None
-            
+        
+        mean_rarevar_pct = 0    
         mean_rsID_pct = 0
         
         #Loop over all files selected
@@ -224,9 +229,11 @@ class Analysis():
             #Tracking
             print(f"Running for file {self.length + 1}")
             
+            #Establish initial counts for number of lines that match given condition
             se_count = 0
             maf_count = 0
             mac_count = 0
+            rarevar_count = 0
             n_rows = 0
             
             if self.ValuesDict[self.ID][-1]:
@@ -237,14 +244,34 @@ class Analysis():
             rsID_count = 0
             
             
-            #Initialise the data structure and where the QC results will be held
-            if self.ID != "EPIC":
-                data = pl.scan_csv(file, separator="\t", null_values=["NA"])
-            else:
+            #Load the data file with polars
+            if self.ID == "EPIC":
                 data = pl.scan_csv(file, separator=" ", null_values=["NA"])
-                
-            rows = data.select(pl.len()).collect().item()
-            n_rows += rows
+            elif "BWHHS" in self.ID:
+                #Due to errors in the BWHHS files we need to manually define the column names and skip the first row
+                data = pl.scan_csv("/data/PHURI-Langenberg/people/Mine/SL_MA/BWHHS_019/bwhhs019_case_2190_55_formatted.txt.gz", 
+                       separator="\t", 
+                       null_values=["NA", ""],
+                       has_header=False,
+                       new_columns=[
+                        "EFFECT_ALLELE",
+                        "OTHER_ALLELE",
+                        "EAF_QTL",
+                        "BETA",
+                        "SE",
+                        "PVAL",
+                        "INFO",
+                        "IMPUTED",
+                        "MarkerName",
+                        "_extra",
+                        "N"
+                       ]
+                    ).slice(1, None)
+            else:
+                data = pl.scan_csv(file, separator="\t", null_values=["NA"])
+            
+            #Count total number of rows    
+            n_rows = data.select(pl.len()).collect().item()
                 
             #Viking cohort needs to be merged
             if self.ID == "VIKING":
@@ -256,16 +283,17 @@ class Analysis():
             #Calculate QC metrics
             #Check if info is available
             if self.ValuesDict[self.ID][-1]:
+                #Instantiate a new df with the required columns, with True/False values for each condition
                 res = data.select([
                     (
-                        pl.col(self.ValuesDict[self.ID][0]).cast(pl.Float64) < 10
-                    ).sum().alias("se"),
+                        pl.col(self.ValuesDict[self.ID][0]).cast(pl.Float64) > 10
+                    ).alias("se"),
                     (
                         pl.min_horizontal(
                             pl.col(self.ValuesDict[self.ID][1]).cast(pl.Float64),
                             1 - pl.col(self.ValuesDict[self.ID][1]).cast(pl.Float64),
                         ) > 0.001
-                    ).sum().alias("maf"),
+                    ).alias("maf"),
                     (
                         2
                         * pl.col("N").cast(pl.Float64)
@@ -274,28 +302,27 @@ class Analysis():
                             1 - pl.col(self.ValuesDict[self.ID][1]).cast(pl.Float64),
                         )
                         > 3
-                    ).sum().alias("mac"),
+                    ).alias("mac"),
                     (
-                        pl.col(self.ValuesDict[self.ID][-1]).cast(pl.Float64) > 0.8
+                        pl.col(self.ValuesDict[self.ID][-1]).cast(pl.Float64) < 0.8
                     ).sum().alias("info")
                 ]).collect()
                 
-                se_count += res["se"][0]
-                maf_count += res["maf"][0]
-                mac_count += res["mac"][0]
+                #Update count for how many rows match the Info condition
                 info_count += res["info"][0]
                 
             else:
+                #Same as above but without Info
                 res = data.select([
                     (
-                        pl.col(self.ValuesDict[self.ID][0]).cast(pl.Float64) < 10
-                    ).sum().alias("se"),
+                        pl.col(self.ValuesDict[self.ID][0]).cast(pl.Float64) > 10
+                    ).alias("se"),
                     (
                         pl.min_horizontal(
                             pl.col(self.ValuesDict[self.ID][1]).cast(pl.Float64),
                             1 - pl.col(self.ValuesDict[self.ID][1]).cast(pl.Float64),
                         ) > 0.001
-                    ).sum().alias("maf"),
+                    ).alias("maf"),
                     (
                         2
                         * pl.col("N").cast(pl.Float64)
@@ -304,15 +331,27 @@ class Analysis():
                             1 - pl.col(self.ValuesDict[self.ID][1]).cast(pl.Float64),
                         )
                         > 3
-                    ).sum().alias("mac"),
+                    ).alias("mac"),
                 ]).collect()
-                
-                se_count += res["se"][0]
-                maf_count += res["maf"][0]
-                mac_count += res["mac"][0]
+            
+            #Select and sum the True/False values to get counts, adds a new column "rarevar_count" for the number of 'false' in se caused by rare variants
+            res = res.select([
+                pl.sum("se").alias("se_count"),
+                pl.sum("maf").alias("maf_count"),
+                pl.sum("mac").alias("mac_count"),
+                ((pl.col("se") == True) & ((pl.col("maf") == False) | (pl.col("mac") == False))).sum().alias("rarevar_count")
+            ])
+            
+            #Update counts
+            se_count += res["se_count"][0]
+            maf_count +=  res["maf_count"][0]
+            mac_count +=  res["mac_count"][0]
+            rarevar_count += res["rarevar_count"][0]
+            
             
             #Check which mode for SNP details extraction is required
             if self.ValuesDict[self.ID][2] == "Constructed":
+                #Extract chr, pos, ref, alt from the relevant columns
                 queries = data.select([
                     pl.col(self.ValuesDict[self.ID][3]).cast(pl.Utf8).str.replace("chr", "").alias("chr"),
                     pl.col(self.ValuesDict[self.ID][4]).cast(pl.Int32).alias("pos"),
@@ -358,10 +397,11 @@ class Analysis():
             """).fetchone()[0]
 
             #Calculate percentages
-            se_pct = se_count / n_rows * 100
+            se_pct = (n_rows - se_count) / n_rows * 100
             maf_pct = maf_count / n_rows * 100
             mac_pct = mac_count / n_rows * 100
-            info_pct = info_count / n_rows * 100 if info_count is not None else None
+            rarevar_pct = rarevar_count / se_count * 100 if se_count != 0 else 100
+            info_pct = (n_rows - info_count) / n_rows * 100 if info_count is not None else None
             rsID_pct = rsID_count / n_rows * 100
             
             #Append to results
@@ -369,6 +409,7 @@ class Analysis():
                                             se_pct, 
                                             mac_pct, 
                                             maf_pct, 
+                                            rarevar_pct,
                                             info_pct, 
                                             rsID_pct
                                             ]
@@ -378,6 +419,7 @@ class Analysis():
             mean_se_pct += se_pct
             mean_maf_pct += maf_pct
             mean_mac_pct += mac_pct
+            mean_rarevar_pct += rarevar_pct
             if self.ValuesDict[self.ID][-1]:
                 mean_info_pct += info_pct
             mean_rsID_pct += rsID_pct
@@ -386,6 +428,7 @@ class Analysis():
         mean_se_pct /= self.length
         mean_maf_pct /= self.length
         mean_mac_pct /= self.length
+        mean_rarevar_pct /= self.length
         if self.ValuesDict[self.ID][-1]:
             mean_info_pct /= self.length
         mean_rsID_pct /= self.length
@@ -394,6 +437,7 @@ class Analysis():
                                          mean_se_pct, 
                                          mean_mac_pct, 
                                          mean_maf_pct, 
+                                         mean_rarevar_pct,
                                          mean_info_pct, 
                                          mean_rsID_pct
                                          ]    
