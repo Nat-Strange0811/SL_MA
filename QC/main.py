@@ -4,8 +4,8 @@ import random
 import duckdb as dd
 import pandas as pd
 from pathlib import Path
-import sys
 import polars as pl
+
 import re
 
 '''
@@ -168,7 +168,7 @@ class Analysis():
         '''
         
         regex_dict = {
-            "Decode"            : r'^DECODE_(?P<seq_id>[^_]+(?:_[^_]+)*)_b37*$',
+            "Decode"            : r"^DECODE_(?P<seq_id>.+)_b\d+\.txt\.gz$",
             "CHRIS"             : r'^(?P<seq_id>[^_]+)_.*$',
             "INTERVAL"          : r'^(?P<seq_id>[^_]+)_.*$',
             "BWHHS_027"         : r'bwhhs027_(?P<seq_id>[^_]+_[^_]+)_formatted\.txt\.gz$',
@@ -248,12 +248,12 @@ class Analysis():
             if self.ID == "EPIC":
                 data = pl.scan_csv(file, separator=" ", null_values=["NA"])
             elif "BWHHS" in self.ID:
-                #Due to errors in the BWHHS files we need to manually define the column names and skip the first row
-                data = pl.scan_csv("/data/PHURI-Langenberg/people/Mine/SL_MA/BWHHS_019/bwhhs019_case_2190_55_formatted.txt.gz", 
-                       separator="\t", 
-                       null_values=["NA", ""],
-                       has_header=False,
-                       new_columns=[
+                #Due to errors in the BWHHS files we need to manually define the column names and skip the first row 
+                data = pl.scan_csv(file,
+                    separator="\t", 
+                    null_values=["NA", ""],
+                    has_header=False,
+                    new_columns=[
                         "EFFECT_ALLELE",
                         "OTHER_ALLELE",
                         "EAF_QTL",
@@ -265,8 +265,66 @@ class Analysis():
                         "MarkerName",
                         "_extra",
                         "N"
-                       ]
+                    ]
                     ).slice(1, None)
+            elif "WHII" in self.ID:
+                pattern = r"^chr(?:\d+|X|Y|MT):\d+_[A-Z]+_[A-Z]+$"
+                data = pl.scan_csv(file, separator=" ", null_values=["NA"])
+                data = data.with_columns(
+                    pl.col("SNPID").str.contains(pattern).alias("valid_snp")
+                )
+                
+                errors = data.filter(~pl.col("valid_snp"))
+                data = data.filter(pl.col("valid_snp"))
+                
+                column = pl.col("SNPID")
+                splitColumns = column.str.split(" ", inclusive=False)
+                cpaID = splitColumns.list.get(0, null_on_oob = True)
+                snpID = splitColumns.list.get(1, null_on_oob = True)
+                strand = splitColumns.list.get(2, null_on_oob = True)
+                eff = splitColumns.list.get(3, null_on_oob = True)
+                other = splitColumns.list.get(4, null_on_oob = True)
+                eaf  = splitColumns.list.get(5, null_on_oob = True)
+                beta = splitColumns.list.get(6, null_on_oob = True)
+                se = splitColumns.list.get(7, null_on_oob = True)
+                pval = splitColumns.list.get(8, null_on_oob = True)
+                n = splitColumns.list.get(9, null_on_oob = True)
+                mac = splitColumns.list.get(10, null_on_oob = True)
+                info = splitColumns.list.get(11, null_on_oob = True)
+                
+                errors = errors.with_columns([
+                    cpaID.cast(pl.Utf8).alias("cpaid"),
+                    snpID.cast(pl.Utf8).alias("SNP"),
+                    strand.cast(pl.Utf8).alias("STRAND"),
+                    eff.cast(pl.Utf8).alias("EFFECT_ALLELE"),
+                    other.cast(pl.Utf8).alias("OTHER_ALLELE"),
+                    eaf.cast(pl.Float64).alias("EAF"),
+                    beta.cast(pl.Float64).alias("BETA"),
+                    se.cast(pl.Float64).alias("SE"),
+                    pval.cast(pl.Float64).alias("PVAL"),
+                    n.cast(pl.Float64).alias("N"),
+                    mac.cast(pl.Float64).alias("MAC"),
+                    info.cast(pl.Float64).alias("INFO")
+                ]).select([
+                    "cpaid",
+                    "SNP",
+                    "STRAND",
+                    "EFFECT_ALLELE",
+                    "OTHER_ALLELE",
+                    "EAF",
+                    "BETA",
+                    "SE",
+                    "PVAL",
+                    "N",
+                    "MAC",
+                    "INFO"
+                ])
+                
+                errors = errors.with_columns(
+                    pl.col("SNPID").str.contains(pattern).alias("valid_snp")
+                )
+                    
+                data = pl.concat([data, errors])
             else:
                 data = pl.scan_csv(file, separator="\t", null_values=["NA"])
             

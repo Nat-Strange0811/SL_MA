@@ -5,3 +5,7 @@ __pycache__/
 *.pyc
 .env
 *.o*
+*.tbl*
+Testfiles/
+WHII_errors_sample.txt
+WHII_hold_sampe.txt

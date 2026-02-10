@@ -1,12 +1,12 @@
 #!/bin/bash
 #$ -cwd
-#$ -N Combine_Viking
+#$ -N Test
 #$ -pe smp 1
-#$ -l h_vmem=8G
-#$ -l h_rt=1:0:00
+#$ -l h_vmem=64G
+#$ -l h_rt=1:00:00
 #$ -j y
 
 module load miniforge
 mamba activate SL_MA_QC
 
-python combine.py
+python QC/test.py 
