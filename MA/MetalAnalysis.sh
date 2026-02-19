@@ -2,9 +2,8 @@
 #$ -cwd
 #$ -N Metal_Analysis
 #$ -pe smp 1
-#$ -l h_vmem=20G
+#$ -l h_vmem=10G
 #$ -l h_rt=1:00:00
-#$ -l highmem
 #$ -j y
 
 #Set initial directories, where the files, metal executable and output directories are located.

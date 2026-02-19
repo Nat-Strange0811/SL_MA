@@ -2,12 +2,11 @@ import polars as pl
 import sys
 import os
 import pandas as pd
-import re
 
 '''
 Main File -
 
-This file creates temporary files for the meta-analysis run by 'METAL' software. It ensures allfiles
+This file creates temporary files for the meta-analysis run by 'METAL' software. It ensures all files
 are in the same format and performs the filtering steps to save time.
 
 It also includes a function to print the unique values contained within some of the columns, this is
@@ -21,7 +20,7 @@ def genFilePaths(seq_id, cohort_id):
     Function - genFilePaths
     
         Inputs:
-            seq_id: An identifier for the protein that is bein analysed, used to generate the file path
+            seq_id: An identifier for the protein that is being analysed, used to generate the file path
             cohort_id: An identifier for the cohort that is being analysed, used to generate the file path
             
         Output:
@@ -79,7 +78,7 @@ def printUniqueValues(data, ID):
     #Regex pattern to check the SNPID column format
     pattern = r"^chr(?:\d+|X|Y|MT):\d+_[A-Z]+_[A-Z]+$"
     
-    #Adda column for each unique component of the SNPID
+    #Add a column for each unique component of the SNPID
     data = data.with_columns(
         pl.col("SNPID")
         .str.split(":", inclusive=False)
@@ -129,25 +128,25 @@ def main():
     
     #Dictionary to store the column names for each cohort, this is used to read in the data and select the relevant columns
     ValuesDict = {
-            "BWHHS_027"                 :   ("PVAL", "BETA", "MarkerName", "SE", "EAF_QTL", "INFO"),
-            "BWHHS_019"                 :   ("PVAL", "BETA", "MarkerName", "SE", "EAF_QTL", "INFO"),
-            "BWHHS_controls"            :   ("PVAL", "BETA", "MarkerName", "SE", "EAF_QTL", "INFO"),
-            "CHRIS"                     :   ("LOG10P", "BETA", "Harmonized_SNPID", "SE", "EAF", "INFO"),
-            "COPDGene_cases"            :   ("PVAL", "BETA", "MarkerName", "SE", "EAF", "INFO"),
-            "COPDGene_controls"         :   ("PVAL", "BETA", "MarkerName", "SE", "EAF", "INFO"),
-            "EPIC_B1_B2_Other"          :   ("P", "BETA", "MarkerName", "SE", "AF1", "INFO"),
-            "EPIC_T2D_cohort"           :   ("P", "BETA", "MarkerName", "SE", "AF1", "INFO"),
-            "EPIC_T2D_cases"            :   ("P", "BETA", "MarkerName", "SE", "AF1", "INFO"),
-            "Fenland_OMICS_final"       :   ("res_invn_X-log10p", "res_invn_X_beta", "MarkerName", "res_invn_X_se", "af", "info"),
-            "Fenland_GWAS_final"        :   ("res_invn_X-log10p", "res_invn_X_beta", "MarkerName", "res_invn_X_se", "af", "info"),
-            "Fenland_CoreExome_final"   :   ("res_invn_X-log10p", "res_invn_X_beta", "MarkerName", "res_invn_X_se", "af", "info"),
-            "Generation_Scotland"       :   ("PVAL", "BETA", "MarkerName", "SE", "EAF", "INFO"),
-            "INTERVAL_SL_sumstats"      :   ("MLOG10P", "BETA", "SNPID", "SE", "EAF", None),
-            "WHII"                      :   ("PVAL", "BETA", "cpaid", "SE", "EAF", "INFO"),
-            "Decode"                    :   ("Pval", "Beta", "MarkerName", "SE", "ImpMAF", None),
-            "HUNT_controls"             :   ("P", "BETA", "MarkerName", "SE", "AF1", None),
-            "HUNT_prev"                 :   ("P", "BETA", "MarkerName", "SE", "AF1", None),
-            "HUNT_incident"             :   ("P", "BETA", "MarkerName", "SE", "AF1", None)
+            "BWHHS_027"                 :   ("PVAL", "BETA", "MarkerName", "SE", "EAF_QTL", "INFO", "EFFECT_ALLELE", "OTHER_ALLELE"),
+            "BWHHS_019"                 :   ("PVAL", "BETA", "MarkerName", "SE", "EAF_QTL", "INFO", "EFFECT_ALLELE", "OTHER_ALLELE"),
+            "BWHHS_controls"            :   ("PVAL", "BETA", "MarkerName", "SE", "EAF_QTL", "INFO", "EFFECT_ALLELE", "OTHER_ALLELE"),
+            "CHRIS"                     :   ("LOG10P", "BETA", "Harmonized_SNPID", "SE", "EAF", "INFO", "EFFECT_ALLELE", "NON_EFFECT_ALLELE"),
+            "COPDGene_cases"            :   ("PVAL", "BETA", "MarkerName", "SE", "EAF", "INFO", "EFFECT_ALLELE", "NON_EFFECT_ALLELE"),
+            "COPDGene_controls"         :   ("PVAL", "BETA", "MarkerName", "SE", "EAF", "INFO", "EFFECT_ALLELE", "NON_EFFECT_ALLELE"),
+            "EPIC_B1_B2_Other"          :   ("P", "BETA", "MarkerName", "SE", "AF1", "INFO", "A1", "A2"),
+            "EPIC_T2D_cohort"           :   ("P", "BETA", "MarkerName", "SE", "AF1", "INFO", "A1", "A2"),
+            "EPIC_T2D_cases"            :   ("P", "BETA", "MarkerName", "SE", "AF1", "INFO", "A1", "A2"),
+            "Fenland_OMICS_final"       :   ("res_invn_X-log10p", "res_invn_X_beta", "MarkerName", "res_invn_X_se", "af", "info", "a_0", "a_1"),
+            "Fenland_GWAS_final"        :   ("res_invn_X-log10p", "res_invn_X_beta", "MarkerName", "res_invn_X_se", "af", "info", "a_0", "a_1"),
+            "Fenland_CoreExome_final"   :   ("res_invn_X-log10p", "res_invn_X_beta", "MarkerName", "res_invn_X_se", "af", "info", "a_0", "a_1"),
+            "Generation_Scotland"       :   ("PVAL", "BETA", "MarkerName", "SE", "EAF", "INFO", "EFFECT_ALLELE", "NON_EFFECT_ALLELE"),
+            "INTERVAL_SL_sumstats"      :   ("MLOG10P", "BETA", "SNPID", "SE", "EAF", None, "EA", "NEA"),
+            "WHII"                      :   ("PVAL", "BETA", "cpaid", "SE", "EAF", "INFO", "EFFECT_ALLELE", "OTHER_ALLELE"),
+            "Decode"                    :   ("Pval", "Beta", "MarkerName", "SE", "ImpMAF", None, "effectAllele", "otherAllele"),
+            "HUNT_controls"             :   ("P", "BETA", "MarkerName", "SE", "AF1", None, "A1", "A2"),
+            "HUNT_prev"                 :   ("P", "BETA", "MarkerName", "SE", "AF1", None, "A1", "A2"),
+            "HUNT_incident"             :   ("P", "BETA", "MarkerName", "SE", "AF1", None, "A1", "A2")
         }
     
     #Read system variables
@@ -167,7 +166,7 @@ def main():
         print(f"File not found: {file}. Skipping {label}.")
         return
     
-    #The EPIC B1_B2 files are space seperated and therefore need to be treated uniquely
+    #The EPIC B1_B2 files are space separated and therefore need to be treated uniquely
     if "B1_B2" in label:
         data = pl.scan_csv(file, separator=" ", null_values=["NA"])
     #Due to errors in the BWHHS files we need to manually define the column names and skip the first row
@@ -226,8 +225,8 @@ def main():
                 pl.lit("_") + alt_allele
             ).alias("SNPID"),
             
-            ref_allele.alias("Effect_Allele"),
-            alt_allele.alias("Other_Allele"),
+            pl.col(ValuesDict[label][6]).alias("Effect_Allele"),
+            pl.col(ValuesDict[label][7]).alias("Other_Allele"),
             pl.col(ValuesDict[label][1]).alias("Beta"),
             pl.col(ValuesDict[label][0]).alias("Pval"),
             pl.col(ValuesDict[label][3]).alias("SE"),
@@ -299,7 +298,7 @@ def main():
             print("Skipping fixed data.")
     
     #Apply QC filters
-    data = data.filter((pl.col("INFO") > 0.4) & (pl.col("EAF") > 0.001) & (pl.col("EAF") < 0.999))
+    data = data.filter((pl.col("INFO") >= 0.4) & (pl.col("EAF") >= 0.001) & (pl.col("EAF") <= 0.999))
     
     #Select important columns for METAL
     data = data.select([
@@ -312,33 +311,15 @@ def main():
         "N"
     ])
     
-    #sample = data.limit(20).collect()
-    
     #Collect the data into memory
     data = data.collect()
     
-    #printUniqueValues(data, label)
-    
-    #Convert to pandas for saving, as polars does not support gzip compression when saving
-    df_pandas = data.to_pandas()
-    
-    #sample_pd = df_pandas.head(20)
-    
-    #Save as a tab seperated file with gzip compression
-    df_pandas.to_csv(
+    #Save as a tab separated file with gzip compression
+    data.write_csv(
         save_dir + f"{label}.txt.gz",
-        sep="\t",
-        header=True,
-        index=False,
-        compression = 'gzip'
+        separator="\t",
+        include_header=True,
     )
-    
-    #sample_pd.to_csv(
-    #    f"MA/Testfiles/{label}_sample.txt",
-    #    sep="\t",
-    #    header=True,
-    #    index=False
-    #)
         
 if __name__ == "__main__":
     main()
