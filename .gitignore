@@ -6,6 +6,8 @@ __pycache__/
 .env
 *.o*
 *.tbl*
+Results/
 Testfiles/
+TemporaryFiles/
 WHII_errors_sample.txt
 WHII_hold_sample.txt

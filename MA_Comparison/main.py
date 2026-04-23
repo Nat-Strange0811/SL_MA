@@ -22,15 +22,15 @@ def main(id):
     try:
         nat_data = pl.read_csv(f"MA/Results/{id}/MetaAnalysis_{id}_1.tbl.gz", separator="\t").select(
             [
-            "MarkerName", 
+            pl.col("MarkerName").alias("MarkerName_Nat"), 
              pl.col("Effect").alias("Effect_Nat"),
              
              ]
         )
         mine_data = pl.read_csv(
-            f"/data/PHURI-Langenberg/people/Mine/SL_MA/01_MA/02_MA/output_comparison/SeqId_{id}/SL_MA_SeqId_{id}.tbl.gz", separator="\t").select(
+            f"/data/PHURI-Langenberg/people/Mine/SL_MA/01_MA/02_MA/output_new_comp/SeqId_{id}/SL_MA_SeqId_{id}.tbl.gz", separator="\t").select(
             [
-            "MarkerName",
+            pl.col("MarkerName").alias("MarkerName_Mine"),
              pl.col("Effect").alias("Effect_Mine")
              ]
         )
@@ -38,13 +38,13 @@ def main(id):
         print(f"Error reading files for ID {id}: {e}")
         return
     
-    merged_data = nat_data.join(mine_data, on="MarkerName", how="full")
+    merged_data = nat_data.join(mine_data, left_on="MarkerName_Nat", right_on="MarkerName_Mine", how="full")
     
-    missing = merged_data.filter(pl.col("Effect_Mine").is_null() | pl.col("Effect_Nat").is_null())
+    errors = merged_data.filter(pl.col("Effect_Mine") != pl.col("Effect_Nat")) # Check for mismatches in Effect values
     
-    if missing.height > 0:
-        print(f"Missing data for ID {id}:")
-        print(missing)
+    if errors.height > 0:
+        print(f"Errors for ID {id}:")
+        print(errors)
         
     result = merged_data.select(
         pl.corr("Effect_Nat", "Effect_Mine").alias("Correlation")

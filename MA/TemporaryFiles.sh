@@ -1,20 +1,25 @@
 #!/bin/bash
-#$ -cwd
-#$ -N Temp_Files
-#$ -pe smp 1
-#$ -l h_vmem=32G
-#$ -l h_rt=1:00:00
-#$ -j y
-#$ -t 1-19
+#SBATCH --job-name=Temp_Files
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=64G
+#SBATCH --time=1:00:00
+#SBATCH --array=1-19
 
 module load miniforge
 mamba activate SL_MA_QC
+
+SL_version="7k"
 
 if [[ -z "$ID" ]]; then
     echo "No ID variable provided."
     exit 1
 fi
 
-TASK=$(sed -n "${SGE_TASK_ID}p" MA/Cohorts.txt)
+if grep -q "^${ID}$" 5K.txt; then
+    echo "ID $ID is to be run on 5k only"
+    SL_version="5k"
+fi
 
-python MA/main.py $TASK $ID
+TASK=$(sed -n "${SLURM_ARRAY_TASK_ID}p" Cohorts.txt)
+
+python MA/main.py $TASK $ID $SL_version $mode

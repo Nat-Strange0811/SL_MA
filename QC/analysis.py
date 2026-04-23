@@ -286,7 +286,7 @@ def run():
     # Boxplot of cohort averages per metric, points colored by cohort
     averages_long = averages.melt(
         id_vars="Cohort",
-        value_vars=["SE", "MAC", "MAF", "INFO", "rsID"],
+        value_vars=["SE > 10", "MAC > 3", "MAF > 0.001", "INFO > 0.8", "Existing rsID"],
         variable_name="Metric",
         value_name="Percentage",
     ).to_pandas().round(3)

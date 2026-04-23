@@ -2,6 +2,8 @@ import polars as pl
 import sys
 import os
 import pandas as pd
+import glob
+import duckdb as dd
 
 '''
 Main File -
@@ -27,6 +29,8 @@ def genFilePaths(seq_id, cohort_id):
             The file path for the specified cohort and protein, this is used to read in the data
     '''
     
+    print("Generating File Paths for ID:", seq_id, "and Cohort:", cohort_id)
+    
     #Base directory for all the files, this is the same for all cohorts and proteins
     base_dir = '/data/PHURI-Langenberg/people/Mine/SL_MA/'
     #Seq_id needs to be split into two parts to account for the different naming conventions used in the files
@@ -35,28 +39,32 @@ def genFilePaths(seq_id, cohort_id):
     
     #Dictionary used to store the file paths for each cohort
     file_paths = {
-        "BWHHS_019" : os.path.join(base_dir, f"BWHHS_019/bwhhs019_case_{seq_id}_formatted.txt.gz"),
-        "BWHHS_027" : os.path.join(base_dir, f"BWHHS_027/bwhhs027_{seq_id}_formatted.txt.gz"),
-        "BWHHS_controls" : os.path.join(base_dir, f"BWHHS_controls/bwhhs019_control_{seq_id}_formatted.txt.gz"),
-        "CHRIS" : os.path.join(base_dir, f"CHRIS/{seq1}-{seq2}_3_CHRIS_03102025_MF.tsv.gz"),
-        "COPDGene_cases" : os.path.join(base_dir, f"COPDGene/output/cases/COPDcases_{seq_id}_formatted.txt.gz"),
-        "COPDGene_controls" : os.path.join(base_dir, f"COPDGene/output/controls/COPDcontrols_{seq_id}_formatted.txt.gz"),
-        "Decode" : os.path.join(base_dir, f"Decode/DECODE_{seq_id}_b37.txt.gz"),
-        "EPIC_B1_B2_Other" : os.path.join(base_dir, f"EPIC_B1_B2_Other/all_invn_X{seq_id}_MarkerName_fastGWA.gz"),
-        "EPIC_T2D_cases" : os.path.join(base_dir, f"EPIC_T2D/cases/cases_invn_X{seq_id}_MarkerName_fastGWA.gz"),
-        "EPIC_T2D_cohort" : os.path.join(base_dir, f"EPIC_T2D/cohort/cohort_invn_X{seq_id}_MarkerName_fastGWA.gz"),
-        "Fenland_GWAS_final" : os.path.join(base_dir, f"Fenland/Fenland_GWAS_final/output/Fenland_GWAS_res_invn_X{seq_id}_forMA.txt.gz"),
-        "Fenland_OMICS_final" : os.path.join(base_dir, f"Fenland/Fenland_OMICS_final/output/Fenland_OMICS_res_invn_X{seq_id}_forMA.txt.gz"),
-        "Fenland_CoreExome_final" : os.path.join(base_dir, f"Fenland/Fenland_CoreExome_final/output/Fenland_CoreExome_res_invn_X{seq_id}_forMA.txt.gz"),
-        "Generation_Scotland" : os.path.join(base_dir, f"Generation_Scotland/genscot_{seq_id}_formatted.txt.gz"),
-        "HUNT_controls" : os.path.join(base_dir, f"HUNT/controls/hunt_controls_{seq_id}_formatted.txt.gz"),
-        "HUNT_incident" : os.path.join(base_dir, f"HUNT/incident/hunt_incident_{seq_id}_formatted.txt.gz"),
-        "HUNT_prev" : os.path.join(base_dir, f"HUNT/prev/hunt_prev_{seq_id}_formatted.txt.gz"),
-        "INTERVAL_SL_sumstats" : os.path.join(base_dir, f"INTERVAL_SL_sumstats/seq.{seq1}.{seq2}/{seq1}-{seq2}_3_INTERVAL_20250107_SCGP.tsv.gz"),
-        "WHII" : os.path.join(base_dir, f"WHII/CLEANED.seq.{seq1}.{seq2}.fastGWA.gz")
+        "BWHHS_019" : [os.path.join(base_dir, f"BWHHS_019/bwhhs019_case_{seq_id}_formatted.txt.gz")],
+        "BWHHS_027" : [os.path.join(base_dir, f"BWHHS_027/bwhhs027_{seq_id}_formatted.txt.gz")],
+        "BWHHS_controls" : [os.path.join(base_dir, f"BWHHS_controls/bwhhs019_control_{seq_id}_formatted.txt.gz")],
+        "CHRIS" : glob.glob(os.path.join(base_dir, f"CHRIS/{seq1}-{seq2}_[1-9]_CHRIS_03102025_MF.tsv.gz")),
+        "COPDGene_cases" : [os.path.join(base_dir, f"COPDGene/output/cases/COPDcases_{seq_id}_formatted.txt.gz")],
+        "COPDGene_controls" : [os.path.join(base_dir, f"COPDGene/output/controls/COPDcontrols_{seq_id}_formatted.txt.gz")],
+        "Decode" : [os.path.join(base_dir, f"Decode/DECODE_{seq_id}_b37.txt.gz")],
+        "EPIC_B1_B2_Other" : [os.path.join(base_dir, f"EPIC_B1_B2_Other/all_invn_X{seq_id}_MarkerName_fastGWA.gz")],
+        "EPIC_T2D_cases" : [os.path.join(base_dir, f"EPIC_T2D/cases/cases_invn_X{seq_id}_MarkerName_fastGWA.gz")],
+        "EPIC_T2D_cohort" : [os.path.join(base_dir, f"EPIC_T2D/cohort/cohort_invn_X{seq_id}_MarkerName_fastGWA.gz")],
+        "Fenland_GWAS_final" : [os.path.join(base_dir, f"Fenland/Fenland_GWAS_final/output/Fenland_GWAS_res_invn_X{seq_id}_forMA.txt.gz")],
+        "Fenland_OMICS_final" : [os.path.join(base_dir, f"Fenland/Fenland_OMICS_final/output/Fenland_OMICS_res_invn_X{seq_id}_forMA.txt.gz")],
+        "Fenland_CoreExome_final" : [os.path.join(base_dir, f"Fenland/Fenland_CoreExome_final/output/Fenland_CoreExome_res_invn_X{seq_id}_forMA.txt.gz")],
+        "Generation_Scotland" : [os.path.join(base_dir, f"Generation_Scotland/genscot_{seq_id}_formatted.txt.gz")],
+        "HUNT_controls" : [os.path.join(base_dir, f"HUNT/controls/hunt_controls_{seq_id}_formatted.txt.gz")],
+        "HUNT_incident" : [os.path.join(base_dir, f"HUNT/incident/hunt_incident_{seq_id}_formatted.txt.gz")],
+        "HUNT_prev" : [os.path.join(base_dir, f"HUNT/prev/hunt_prev_{seq_id}_formatted.txt.gz")],
+        "INTERVAL_SL_sumstats" : glob.glob(os.path.join(base_dir, f"INTERVAL_SL_sumstats/seq.{seq1}.{seq2}/{seq1}-{seq2}_[1-9]_INTERVAL_20250107_SCGP.tsv.gz")),
+        "WHII" : [os.path.join(base_dir, f"WHII/CLEANED.seq.{seq1}.{seq2}.fastGWA.gz")]
     }
     
-    return file_paths[cohort_id]
+    try:
+        return file_paths[cohort_id][0]
+    except IndexError:
+        print(f"Error for cohort {cohort_id} and seq_id {seq_id}: No file found.")
+        return 'Error No file found'
 
 def printUniqueValues(data, ID):
     '''
@@ -137,21 +145,24 @@ def main():
             "EPIC_B1_B2_Other"          :   ("P", "BETA", "MarkerName", "SE", "AF1", "INFO", "A1", "A2"),
             "EPIC_T2D_cohort"           :   ("P", "BETA", "MarkerName", "SE", "AF1", "INFO", "A1", "A2"),
             "EPIC_T2D_cases"            :   ("P", "BETA", "MarkerName", "SE", "AF1", "INFO", "A1", "A2"),
-            "Fenland_OMICS_final"       :   ("res_invn_X-log10p", "res_invn_X_beta", "MarkerName", "res_invn_X_se", "af", "info", "a_0", "a_1"),
-            "Fenland_GWAS_final"        :   ("res_invn_X-log10p", "res_invn_X_beta", "MarkerName", "res_invn_X_se", "af", "info", "a_0", "a_1"),
-            "Fenland_CoreExome_final"   :   ("res_invn_X-log10p", "res_invn_X_beta", "MarkerName", "res_invn_X_se", "af", "info", "a_0", "a_1"),
+            "Fenland_OMICS_final"       :   ("res_invn_X-log10p", "res_invn_X_beta", "MarkerName", "res_invn_X_se", "af", "info", "a_1", "a_0"),
+            "Fenland_GWAS_final"        :   ("res_invn_X-log10p", "res_invn_X_beta", "MarkerName", "res_invn_X_se", "af", "info", "a_1", "a_0"),
+            "Fenland_CoreExome_final"   :   ("res_invn_X-log10p", "res_invn_X_beta", "MarkerName", "res_invn_X_se", "af", "info", "a_1", "a_0"),
             "Generation_Scotland"       :   ("PVAL", "BETA", "MarkerName", "SE", "EAF", "INFO", "EFFECT_ALLELE", "NON_EFFECT_ALLELE"),
             "INTERVAL_SL_sumstats"      :   ("MLOG10P", "BETA", "SNPID", "SE", "EAF", None, "EA", "NEA"),
             "WHII"                      :   ("PVAL", "BETA", "cpaid", "SE", "EAF", "INFO", "EFFECT_ALLELE", "OTHER_ALLELE"),
-            "Decode"                    :   ("Pval", "Beta", "MarkerName", "SE", "ImpMAF", None, "effectAllele", "otherAllele"),
+            "Decode"                    :   ("Pval", "Beta", "MarkerName", "SE", "effectAlleleFreq", None, "effectAllele", "otherAllele"),
             "HUNT_controls"             :   ("P", "BETA", "MarkerName", "SE", "AF1", None, "A1", "A2"),
             "HUNT_prev"                 :   ("P", "BETA", "MarkerName", "SE", "AF1", None, "A1", "A2"),
             "HUNT_incident"             :   ("P", "BETA", "MarkerName", "SE", "AF1", None, "A1", "A2")
         }
     
     #Read system variables
+    print("Reading system variables...")
     label = sys.argv[1]
     seq_id = sys.argv[2]
+    SL_version = sys.argv[3]
+    mode = sys.argv[4]
     
     #Generate the file path for the specified cohort and seq_id
     file = genFilePaths(seq_id, label)
@@ -159,12 +170,15 @@ def main():
     save_dir = f'/data/PHURI-Langenberg/people/SL_MA/01_QC/Nat/Code/TemporaryFiles/{seq_id}/'
     
     #Make the save directory incase it doesn't exist
+    print(f"Ensuring save directory exists at: {save_dir}")
     os.makedirs(save_dir, exist_ok=True)
     
     #If we can't find the cohort file, skip the cohort, some cohorts don't have data for all proteins
     if not os.path.exists(file):
         print(f"File not found: {file}. Skipping {label}.")
         return
+    
+    print("Loading File...")
     
     #The EPIC B1_B2 files are space separated and therefore need to be treated uniquely
     if "B1_B2" in label:
@@ -189,9 +203,17 @@ def main():
                 "N"
             ]
             ).slice(1, None)
+    elif "Decode" in label and mode == "LOO":
+        print(f"Skipping {label} as LOO mode is selected and this cohort needs to be excluded.")
+        return
+    elif ("WHII" in label or "CHRIS" in label) and SL_version == "5k":
+        print(f"Skipping {label} as the protein ID has poor coverage in 7k cohorts")
+        return
     #Otherwise just read normally
     else:
         data = pl.scan_csv(file, separator="\t", null_values=["NA"], truncate_ragged_lines=True)
+    
+    print("File loaded, processing data...")
     
     #Specify which column contains the Marker Name information, hence forth referred to as 'snp_col'
     snp_col = ValuesDict[label][2]
@@ -297,6 +319,8 @@ def main():
             print(f"Error collecting fixed data: {e}")
             print("Skipping fixed data.")
     
+    print("Data processed, applying QC filters...")
+    
     #Apply QC filters
     data = data.filter((pl.col("INFO") >= 0.4) & (pl.col("EAF") >= 0.001) & (pl.col("EAF") <= 0.999))
     
@@ -307,20 +331,52 @@ def main():
         "Other_Allele",
         "Beta",
         "Pval",
+        "EAF",
         "SE",
         "N"
     ])
     
     #Collect the data into memory
-    data = data.collect()
+    print("QC filters applied, collecting data into memory...")
+    data = data.collect(engine = "in-memory")
+    
+    #Merge with dbSNP to get rsIDs
+    #Set up duckdb connection
+    print("Merging with dbSNP to get rsIDs...")
+    conn = dd.connect(database=':memory:')
+    
+    #Read in dbSNP data
+    snp = conn.read_csv(
+            '/data/PHURI-Langenberg/people/Mine/SL_MA/01_MA/03_markername/dbsnp_all_annotated_variants_sorted_noheader.txt',
+            delimiter='\t',
+            header=False,
+            comment='#',
+            columns={
+                'SNPID':'VARCHAR',
+                'Chr':'VARCHAR',
+                'Pos':'BIGINT',
+                'dbSNP_ID':'VARCHAR',
+            }
+    )
+    
+    conn.register('data', data)
+    
+    print("Performing merge with dbSNP...")
+    result = conn.execute("""
+        SELECT data.*, snp.dbSNP_ID, snp.Chr, snp.Pos
+        FROM data
+        INNER JOIN snp ON data.SNPID = snp.SNPID
+    """).df()
     
     #Save as a tab separated file with gzip compression
-    data.write_csv(
+    print(f"Merge complete, saving file to destination {label}.txt.gz")
+    result.to_csv(
         save_dir + f"{label}.txt.gz",
-        separator="\t",
-        include_header=True,
+        sep="\t",
+        index=False,
     )
-        
+    print("File saved successfully.")
+
 if __name__ == "__main__":
     main()
         

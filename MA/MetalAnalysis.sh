@@ -1,53 +1,57 @@
 #!/bin/bash
-#$ -cwd
-#$ -N Metal_Analysis
-#$ -pe smp 1
-#$ -l h_vmem=10G
-#$ -l h_rt=1:00:00
-#$ -j y
+#SBATCH --job-name=Metal_Analysis
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=14G
+#SBATCH --time=1:00:00
 
-#Set initial directories, where the files, metal executable and output directories are located.
+# Set initial directories
 directory="TemporaryFiles/$ID"
 metal_exe="/data/PHURI-Langenberg/programs/METAL/random-metal-0.1.0/executables/metal"
-outfile="MA/Results/${ID}/MetaAnalysis_${ID}_"
+outfile="MA/Results/${ID}/MetaAnalysis_${ID}_${mode}_"
 
-#Creates a temporary file to store the commands for the metal executable, is dynamically written to
+# Create temporary command file
 cmd_file=$(mktemp)
 
-#Make the output directory for the given ID
+# Make output directory
+mkdir -p "MA/Results"
 mkdir -p "MA/Results/${ID}"
 
-#Write to the temporary file created above, refer to METAL documentation for detail on commands used
+# Write initial METAL commands
 cat <<EOT > $cmd_file
 SCHEME STDERR
+AVERAGEFREQ ON
+MINMAXFREQ ON
+CUSTOMVARIABLE TotalSampleSize
+LABEL TotalSampleSize as N
+
 MARKER SNPID
 ALLELE Effect_Allele Other_Allele
 EFFECT Beta
 PVALUE Pval
 WEIGHT N
+FREQ EAF
 STDERR SE
 SEPARATOR TAB
 EOT
 
-#Loop through all temporary files and include them as 'PROCESS' files for the metal executable,
-#We use >> instead of > to append to the file ensuring that the initial commands are not overwritten.
+# Loop through temporary files and append PROCESS commands
 for file in $directory/*.txt.gz; do
     echo $file
     echo "PROCESS $file" >> "$cmd_file"
 done
 
-#Include the final commands calling for analysis and specifiying the output file.
+# Append final METAL commands
 cat <<EOT >> $cmd_file
 OUTFILE $outfile .tbl
 ANALYZE HETEROGENEITY
 QUIT
 EOT
 
-#Activate metal passing the temporary command file as an argument
+# Run METAL
 $metal_exe $cmd_file
 
-#Delete the temporary command file as it is no longer needed
+# Remove temporary command file
 rm $cmd_file
 
-#gzip the output file to save space
-gzip -f "MA/Results/${ID}/MetaAnalysis_${ID}_1.tbl"
+# Compress output
+gzip -f "MA/Results/${ID}/MetaAnalysis_${ID}_${mode}_1.tbl"
